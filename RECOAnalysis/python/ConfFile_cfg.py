@@ -23,7 +23,7 @@ if filelist_name.startswith("file:"):
 
 with open(filelist_name) as f:
     file_list = [
-        "root://hip-cms-se.csc.fi//" + line.strip().lstrip("/")
+        "root://cms-xrd-global.cern.ch//" + line.strip().lstrip("/")
         for line in f if line.strip()
     ]
 

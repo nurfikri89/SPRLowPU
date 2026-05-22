@@ -1,3 +1,4 @@
+
 import ROOT
 
 ROOT.gROOT.SetBatch(True)
@@ -74,6 +75,18 @@ def draw_projection_z_from_h3(h3_name, x_min, x_max, proj_name):
     return h
 
 
+energy_bins = [
+    (1, 5),
+    (5, 10),
+    (10, 20),
+    (20, 30),
+    (30, 50),
+    (50, 75),
+    (75, 100),
+    (100, 200),
+]
+
+
 c = ROOT.TCanvas("c", "c", 1700, 1200)
 c.Print(output_pdf + "[")
 
@@ -90,18 +103,16 @@ draw_hist("h_ep_total_endcap")
 title("Endcap: PFBlock cluster-level (ECAL+HCAL)/p")
 
 c.cd(3)
-draw_hist("h2_ep_total_vs_p_barrel", "COLZ", logz=True)
-title("Barrel: response vs track p")
+draw_hist("h2_ep_total_vs_genE_barrel", "COLZ", logz=True)
+title("Barrel: response vs gen pion energy")
 
 c.cd(4)
-draw_hist("h2_ep_total_vs_p_endcap", "COLZ", logz=True)
-title("Endcap: response vs track p")
+draw_hist("h2_ep_total_vs_genE_endcap", "COLZ", logz=True)
+title("Endcap: response vs gen pion energy")
 
 c.Print(output_pdf)
 
-# ------------------------------------------------------------
-# Page 2: response vs pion energy
-# ------------------------------------------------------------
+# Page 2: gen pion energy and eta distributions
 c.Clear()
 c.Divide(2, 2)
 
@@ -110,34 +121,20 @@ draw_hist("h_gen_energy_den")
 title("Gen pion energy denominator")
 
 c.cd(2)
-draw_hist("h2_ep_total_vs_genE_barrel", "COLZ", logz=True)
-title("Barrel: response vs gen pion energy")
+draw_hist("h_gen_eta_den")
+title("Gen pion eta denominator")
 
 c.cd(3)
-draw_hist("h2_ep_total_vs_genE_endcap", "COLZ", logz=True)
-title("Endcap: response vs gen pion energy")
+draw_hist("h2_gen_eta_vs_energy", "COLZ", logz=True)
+title("Gen pion eta vs energy")
 
 c.cd(4)
-draw_hist("h2_ep_total_vs_p_barrel", "COLZ", logz=True)
-title("Barrel: response vs track p")
+draw_hist("h_min_dr_gen_pftrack")
+title("Minimum DeltaR(gen pion, PF track)")
 
 c.Print(output_pdf)
 
-# Page 3: full eta efficiencies vs pT and energy
-eff_track_pt = make_eff(
-    "h_gen_pt_num_trackeff",
-    "h_gen_pt_den_trackeff",
-    "eff_track_pt",
-    ";gen pion pT [GeV];efficiency"
-)
-
-eff_hcal_pt = make_eff(
-    "h_gen_pt_num_track_hcalblock",
-    "h_gen_pt_den_trackeff",
-    "eff_hcal_pt",
-    ";gen pion pT [GeV];efficiency"
-)
-
+# Page 3: full eta efficiencies vs gen pion energy
 eff_track_E = make_eff(
     "h_gen_energy_num_trackeff",
     "h_gen_energy_den_trackeff",
@@ -156,38 +153,24 @@ c.Clear()
 c.Divide(2, 2)
 
 c.cd(1)
-eff_track_pt.Draw("E")
-title("Full eta: gen pion -> reco track vs pT")
+draw_hist("h_gen_energy_den_trackeff")
+title("Full eta: denominator")
 
 c.cd(2)
-eff_hcal_pt.Draw("E")
-title("Full eta: gen pion -> track in HCAL PFBlock vs pT")
+draw_hist("h_gen_energy_num_trackeff")
+title("Full eta: matched reco track numerator")
 
 c.cd(3)
 eff_track_E.Draw("E")
-title("Full eta: gen pion -> reco track vs energy")
+title("Full eta: gen pion -> reco track")
 
 c.cd(4)
 eff_hcal_E.Draw("E")
-title("Full eta: gen pion -> track in HCAL PFBlock vs energy")
+title("Full eta: gen pion -> track in HCAL PFBlock")
 
 c.Print(output_pdf)
 
-# Page 4: barrel-only efficiencies vs pT and energy
-eff_track_pt_barrel = make_eff(
-    "h_gen_pt_num_trackeff_barrel",
-    "h_gen_pt_den_trackeff_barrel",
-    "eff_track_pt_barrel",
-    ";gen pion pT [GeV];efficiency"
-)
-
-eff_hcal_pt_barrel = make_eff(
-    "h_gen_pt_num_track_hcalblock_barrel",
-    "h_gen_pt_den_trackeff_barrel",
-    "eff_hcal_pt_barrel",
-    ";gen pion pT [GeV];efficiency"
-)
-
+# Page 4: barrel efficiencies vs gen pion energy
 eff_track_E_barrel = make_eff(
     "h_gen_energy_num_trackeff_barrel",
     "h_gen_energy_den_trackeff_barrel",
@@ -206,24 +189,60 @@ c.Clear()
 c.Divide(2, 2)
 
 c.cd(1)
-eff_track_pt_barrel.Draw("E")
-title("Barrel: gen pion -> reco track vs pT")
+draw_hist("h_gen_energy_den_trackeff_barrel")
+title("Barrel: denominator")
 
 c.cd(2)
-eff_hcal_pt_barrel.Draw("E")
-title("Barrel: gen pion -> track in HCAL PFBlock vs pT")
+draw_hist("h_gen_energy_num_trackeff_barrel")
+title("Barrel: matched reco track numerator")
 
 c.cd(3)
 eff_track_E_barrel.Draw("E")
-title("Barrel: gen pion -> reco track vs energy")
+title("Barrel: gen pion -> reco track")
 
 c.cd(4)
 eff_hcal_E_barrel.Draw("E")
-title("Barrel: gen pion -> track in HCAL PFBlock vs energy")
+title("Barrel: gen pion -> track in HCAL PFBlock")
 
 c.Print(output_pdf)
 
-# Page 5: eta efficiencies
+# Page 5: endcap efficiencies vs gen pion energy
+eff_track_E_endcap = make_eff(
+    "h_gen_energy_num_trackeff_endcap",
+    "h_gen_energy_den_trackeff_endcap",
+    "eff_track_E_endcap",
+    ";gen pion energy [GeV];efficiency"
+)
+
+eff_hcal_E_endcap = make_eff(
+    "h_gen_energy_num_track_hcalblock_endcap",
+    "h_gen_energy_den_trackeff_endcap",
+    "eff_hcal_E_endcap",
+    ";gen pion energy [GeV];efficiency"
+)
+
+c.Clear()
+c.Divide(2, 2)
+
+c.cd(1)
+draw_hist("h_gen_energy_den_trackeff_endcap")
+title("Endcap: denominator")
+
+c.cd(2)
+draw_hist("h_gen_energy_num_trackeff_endcap")
+title("Endcap: matched reco track numerator")
+
+c.cd(3)
+eff_track_E_endcap.Draw("E")
+title("Endcap: gen pion -> reco track")
+
+c.cd(4)
+eff_hcal_E_endcap.Draw("E")
+title("Endcap: gen pion -> track in HCAL PFBlock")
+
+c.Print(output_pdf)
+
+# Page 6: eta efficiencies
 eff_track_eta = make_eff(
     "h_gen_eta_num_trackeff",
     "h_gen_eta_den_trackeff",
@@ -251,55 +270,15 @@ title("Numerator: matched reco track")
 
 c.cd(3)
 eff_track_eta.Draw("E")
-title("Full eta: tracking efficiency vs eta")
+title("Tracking efficiency vs eta")
 
 c.cd(4)
 eff_hcal_eta.Draw("E")
-title("Full eta: track in HCAL PFBlock efficiency vs eta")
+title("Track in HCAL PFBlock efficiency vs eta")
 
 c.Print(output_pdf)
 
-# Page 6: barrel p-bin matrix using track momentum
-p_bins = [
-    (3, 5),
-    (5, 7),
-    (7, 10),
-    (10, 15),
-    (15, 20),
-    (20, 30),
-    (30, 50),
-    (50, 100),
-]
-
-c.Clear()
-c.Divide(4, 2)
-
-for i, (pmin, pmax) in enumerate(p_bins, start=1):
-    c.cd(i)
-    ROOT.gPad.SetLogy(False)
-    ROOT.gPad.SetLogz(False)
-    draw_projection_z_from_h3(
-        "h3_ep_total_p_eta_barrel",
-        pmin,
-        pmax,
-        f"h_ep_barrel_p_{pmin}_{pmax}"
-    )
-    title(f"Barrel, {pmin} < track p < {pmax} GeV")
-
-c.Print(output_pdf)
-
-# Page 7: barrel energy-bin matrix using gen pion energy
-energy_bins = [
-    (1, 5),
-    (5, 10),
-    (10, 20),
-    (20, 30),
-    (30, 50),
-    (50, 75),
-    (75, 100),
-    (100, 200),
-]
-
+# Page 7: barrel energy-bin matrix
 c.Clear()
 c.Divide(4, 2)
 
@@ -307,17 +286,39 @@ for i, (emin, emax) in enumerate(energy_bins, start=1):
     c.cd(i)
     ROOT.gPad.SetLogy(False)
     ROOT.gPad.SetLogz(False)
+
     draw_projection_z_from_h3(
         "h3_ep_total_genE_eta_barrel",
         emin,
         emax,
         f"h_ep_barrel_genE_{emin}_{emax}"
     )
+
     title(f"Barrel, {emin} < gen E < {emax} GeV")
 
 c.Print(output_pdf)
 
-# Page 8: matched/unmatched and deltaR
+# Page 8: endcap energy-bin matrix
+c.Clear()
+c.Divide(4, 2)
+
+for i, (emin, emax) in enumerate(energy_bins, start=1):
+    c.cd(i)
+    ROOT.gPad.SetLogy(False)
+    ROOT.gPad.SetLogz(False)
+
+    draw_projection_z_from_h3(
+        "h3_ep_total_genE_eta_endcap",
+        emin,
+        emax,
+        f"h_ep_endcap_genE_{emin}_{emax}"
+    )
+
+    title(f"Endcap, {emin} < gen E < {emax} GeV")
+
+c.Print(output_pdf)
+
+# Page 9: matched/unmatched and response cross-checks
 c.Clear()
 c.Divide(2, 2)
 
@@ -330,12 +331,12 @@ draw_hist("h_ep_total_unmatched_dr03")
 title("Unmatched: DeltaR >= 0.3")
 
 c.cd(3)
-draw_hist("h_min_dr_gen_pftrack")
-title("Minimum DeltaR(gen pion, PF track)")
-
-c.cd(4)
 draw_hist("h2_ep_total_vs_genE_barrel", "COLZ", logz=True)
 title("Barrel: response vs gen pion energy")
+
+c.cd(4)
+draw_hist("h2_ep_total_vs_genE_endcap", "COLZ", logz=True)
+title("Endcap: response vs gen pion energy")
 
 c.Print(output_pdf)
 
