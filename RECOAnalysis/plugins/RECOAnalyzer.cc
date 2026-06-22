@@ -31,6 +31,9 @@
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
 
+#include "SimDataFormats/Track/interface/SimTrack.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+
 #include "DataFormats/ParticleFlowReco/interface/PFBlockFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlock.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElement.h"
@@ -88,12 +91,16 @@ private:
   edm::EDGetTokenT<std::vector<reco::PFBlock>> pfBlocksToken_;
   edm::EDGetTokenT<reco::VertexCollection> primaryVerticesToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
+  edm::EDGetTokenT<std::vector<SimTrack>> simTracksToken_;
+  edm::EDGetTokenT<std::vector<SimVertex>> simVerticesToken_;
 };
 
 RECOAnalyzer::RECOAnalyzer(const edm::ParameterSet& iConfig)
     : pfBlocksToken_(consumes<std::vector<reco::PFBlock>>(iConfig.getParameter<edm::InputTag>("pfBlock"))),
       primaryVerticesToken_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("primaryVertices"))),
-      genParticlesToken_(consumes<reco::GenParticleCollection>(iConfig.getParameter<edm::InputTag>("genParticles"))) {
+      genParticlesToken_(consumes<reco::GenParticleCollection>(iConfig.getParameter<edm::InputTag>("genParticles"))),
+      simTracksToken_(consumes<std::vector<SimTrack>>(iConfig.getParameter<edm::InputTag>("simTracks"))),
+      simVerticesToken_(consumes<std::vector<SimVertex>>(iConfig.getParameter<edm::InputTag>("simVertices"))) {
 
   usesResource(TFileService::kSharedResource);
 
@@ -189,6 +196,18 @@ RECOAnalyzer::RECOAnalyzer(const edm::ParameterSet& iConfig)
            ";gen pion energy [GeV], 1.3 #leq |#eta| < 2.5;matched track in PFBlock with HCAL",
            100, 0., 200.);
 
+  bookTH1F("h_gen_energy_num_simtrack",
+         ";gen pion energy [GeV];gen pions with matched SimTrack",
+         100, 0., 200.);
+
+  bookTH1F("h_gen_energy_num_simtrack_recotrack",
+          ";gen pion energy [GeV];gen pions with matched SimTrack and reco track",
+          100, 0., 200.);
+
+  bookTH1F("h_gen_energy_num_simtrack_recotrack_hcalblock",
+          ";gen pion energy [GeV];gen pions with matched SimTrack, reco track, and HCAL PFBlock",
+          100, 0., 200.);
+
   // Eta-dependent efficiencies, kept as diagnostic
   bookTH1F("h_gen_eta_den_trackeff",
            ";gen pion #eta;gen pions",
@@ -265,6 +284,49 @@ void RECOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
   const bool genIsBarrel = std::abs(gen_eta) < 1.3;
   const bool genIsEndcap = std::abs(gen_eta) >= 1.3 && std::abs(gen_eta) < 2.5;
 
+  edm::Handle<std::vector<SimTrack>> simTracksHandle;
+  iEvent.getByToken(simTracksToken_, simTracksHandle);
+
+  edm::Handle<std::vector<SimVertex>> simVerticesHandle;
+  iEvent.getByToken(simVerticesToken_, simVerticesHandle);
+
+  bool hasMatchedSimTrack = false;
+  float matchedSimTrackEta = 999.0;
+  float matchedSimTrackPhi = 999.0;
+  float matchedSimTrackP   = -1.0;
+
+  if (simTracksHandle.isValid()) {
+    float bestSimDR = 999.0;
+
+    for (const auto& simTrack : *simTracksHandle) {
+      if (std::abs(simTrack.type()) != 211) continue;
+      if (simTrack.noGenpart()) continue;
+
+      const auto& mom = simTrack.momentum();
+
+      const float sim_eta = mom.eta();
+      const float sim_phi = mom.phi();
+      const float sim_p   = mom.P();
+
+      if (sim_p <= 0.) continue;
+
+      const float dr = reco::deltaR(gen_eta, gen_phi, sim_eta, sim_phi);
+      const float relDp = std::abs(sim_p - gen_p) / gen_p;
+
+      if (dr < bestSimDR && dr < 0.05 && relDp < 0.05) {
+        bestSimDR = dr;
+        hasMatchedSimTrack = true;
+        matchedSimTrackEta = sim_eta;
+        matchedSimTrackPhi = sim_phi;
+        matchedSimTrackP   = sim_p;
+      }
+    }
+  }
+
+if (hasMatchedSimTrack) {
+  m_mapH1D["h_gen_energy_num_simtrack"]->Fill(gen_energy);
+}
+
   m_mapH1D["h_gen_energy_den"]->Fill(gen_energy);
   m_mapH1D["h_gen_eta_den"]->Fill(gen_eta);
   m_mapH2D["h2_gen_eta_vs_energy"]->Fill(gen_eta, gen_energy);
@@ -290,6 +352,7 @@ void RECOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
 
   const auto& pfBlocks = *pfBlocksHandle;
 
+
   // 1) Tracking efficiency:
   bool hasMatchedRecoTrack = false;
 
@@ -304,8 +367,12 @@ void RECOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
       if (trk.isNull()) continue;
       if (trk->p() <= 0.) continue;
 
-      const float dr = reco::deltaR(gen_eta, gen_phi, trk->eta(), trk->phi());
-      const float relDp = std::abs(trk->p() - gen_p) / gen_p;
+      const float ref_eta = hasMatchedSimTrack ? matchedSimTrackEta : gen_eta;
+      const float ref_phi = hasMatchedSimTrack ? matchedSimTrackPhi : gen_phi;
+      const float ref_p   = hasMatchedSimTrack ? matchedSimTrackP   : gen_p;
+
+      const float dr = reco::deltaR(ref_eta, ref_phi, trk->eta(), trk->phi());
+      const float relDp = std::abs(trk->p() - ref_p) / ref_p;
 
       if (dr < 0.05 && relDp < 0.05) {
         hasMatchedRecoTrack = true;
@@ -319,6 +386,10 @@ void RECOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
   if (hasMatchedRecoTrack) {
     m_mapH1D["h_gen_energy_num_trackeff"]->Fill(gen_energy);
     m_mapH1D["h_gen_eta_num_trackeff"]->Fill(gen_eta);
+
+    if (hasMatchedSimTrack) {
+      m_mapH1D["h_gen_energy_num_simtrack_recotrack"]->Fill(gen_energy);
+    }
 
     if (genIsBarrel) {
       m_mapH1D["h_gen_energy_num_trackeff_barrel"]->Fill(gen_energy);
@@ -379,8 +450,12 @@ void RECOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
     if (trk.isNull()) continue;
     if (trk->p() <= 0.) continue;
 
-    const float dr = reco::deltaR(gen_eta, gen_phi, trk->eta(), trk->phi());
-    const float relDp = std::abs(trk->p() - gen_p) / gen_p;
+    const float ref_eta = hasMatchedSimTrack ? matchedSimTrackEta : gen_eta;
+    const float ref_phi = hasMatchedSimTrack ? matchedSimTrackPhi : gen_phi;
+    const float ref_p   = hasMatchedSimTrack ? matchedSimTrackP   : gen_p;
+
+    const float dr = reco::deltaR(ref_eta, ref_phi, trk->eta(), trk->phi());
+    const float relDp = std::abs(trk->p() - ref_p) / ref_p;
 
     if (dr < 0.05 && relDp < 0.05) {
       hasMatchedTrackInHCALBlock = true;
@@ -389,17 +464,26 @@ void RECOAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
   }
 
   if (hasMatchedTrackInHCALBlock) {
-    m_mapH1D["h_gen_energy_num_track_hcalblock"]->Fill(gen_energy);
-    m_mapH1D["h_gen_eta_num_track_hcalblock"]->Fill(gen_eta);
 
-    if (genIsBarrel) {
-      m_mapH1D["h_gen_energy_num_track_hcalblock_barrel"]->Fill(gen_energy);
-    }
+  m_mapH1D["h_gen_energy_num_track_hcalblock"]->Fill(gen_energy);
+  m_mapH1D["h_gen_eta_num_track_hcalblock"]->Fill(gen_eta);
 
-    if (genIsEndcap) {
-      m_mapH1D["h_gen_energy_num_track_hcalblock_endcap"]->Fill(gen_energy);
-    }
+  // NEW:
+  if (hasMatchedSimTrack) {
+    m_mapH1D["h_gen_energy_num_simtrack_recotrack_hcalblock"]
+      ->Fill(gen_energy);
   }
+
+  if (genIsBarrel) {
+    m_mapH1D["h_gen_energy_num_track_hcalblock_barrel"]
+      ->Fill(gen_energy);
+  }
+
+  if (genIsEndcap) {
+    m_mapH1D["h_gen_energy_num_track_hcalblock_endcap"]
+      ->Fill(gen_energy);
+  }
+}
 
   // 4) Main PFBlock loop:
   float minDR = 999.0;

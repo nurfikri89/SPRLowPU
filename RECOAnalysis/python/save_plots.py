@@ -5,8 +5,8 @@ ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
 ROOT.gStyle.SetPalette(ROOT.kViridis)
 
-input_file = "/afs/cern.ch/user/m/mmarjama/CMSSW_15_0_15_patch4/histo_all_energy.root"
-output_pdf = "/afs/cern.ch/user/m/mmarjama/CMSSW_15_0_15_patch4/reco_analysis_plots_energy.pdf"
+input_file = "/afs/cern.ch/user/m/mmarjama/CMSSW_15_0_15_patch4/histo_all_simtrack.root"
+output_pdf = "/afs/cern.ch/user/m/mmarjama/CMSSW_15_0_15_patch4/reco_analysis_plots_simtrack.pdf"
 
 f = ROOT.TFile.Open(input_file)
 if not f or f.IsZombie():
@@ -133,6 +133,51 @@ draw_hist("h_min_dr_gen_pftrack")
 title("Minimum DeltaR(gen pion, PF track)")
 
 c.Print(output_pdf)
+
+
+# Page 3: gen pion -> SimTrack -> reco track -> HCAL PFBlock chain
+eff_simtrack = make_eff(
+    "h_gen_energy_num_simtrack",
+    "h_gen_energy_den_trackeff",
+    "eff_simtrack",
+    ";gen pion energy [GeV];efficiency"
+)
+
+eff_simtrack_recotrack = make_eff(
+    "h_gen_energy_num_simtrack_recotrack",
+    "h_gen_energy_den_trackeff",
+    "eff_simtrack_recotrack",
+    ";gen pion energy [GeV];efficiency"
+)
+
+eff_simtrack_recotrack_hcal = make_eff(
+    "h_gen_energy_num_simtrack_recotrack_hcalblock",
+    "h_gen_energy_den_trackeff",
+    "eff_simtrack_recotrack_hcal",
+    ";gen pion energy [GeV];efficiency"
+)
+
+c.Clear()
+c.Divide(2, 2)
+
+c.cd(1)
+eff_simtrack.Draw("E")
+title("gen pion -> SimTrack")
+
+c.cd(2)
+eff_simtrack_recotrack.Draw("E")
+title("gen pion -> SimTrack -> reco track")
+
+c.cd(3)
+eff_simtrack_recotrack_hcal.Draw("E")
+title("gen pion -> SimTrack -> reco track -> HCAL PFBlock")
+
+c.cd(4)
+draw_hist("h_gen_energy_den_trackeff")
+title("Denominator: gen pion energy")
+
+c.Print(output_pdf)
+
 
 # Page 3: full eta efficiencies vs gen pion energy
 eff_track_E = make_eff(

@@ -48,6 +48,8 @@ process.recoAnalyzer = cms.EDAnalyzer(
     pfBlock = cms.InputTag("particleFlowBlock"),
     primaryVertices = cms.InputTag("offlinePrimaryVertices"),
     genParticles = cms.InputTag("genParticles"),
+    simTracks = cms.InputTag("g4SimHits"),
+    simVertices = cms.InputTag("g4SimHits"),
 )
 
 process.p = cms.Path(process.recoAnalyzer)
